@@ -11,42 +11,51 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+      # Checkout repository
+      - uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '20'
+      # Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-    - name: Install dependencies
-      run: npm install
+      # Install dependencies
+      - name: Install dependencies
+        run: npm install
 
-    - name: Add Capacitor Android platform
-      run: npx cap add android || echo "Android platform already exists"
+      # Add Capacitor Android platform
+      - name: Add Capacitor Android platform
+        run: npx cap add android || echo "Android platform already exists"
 
-    - name: Copy web assets
-      run: npx cap copy android
+      # Copy web assets to Android
+      - name: Copy web assets
+        run: npx cap copy android
 
-    - name: Set up Java
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'temurin'
-        java-version: '21'
+      # Set up Java
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
 
-    - name: Decode keystore
-      run: echo "$ANDROID_KEYSTORE" | base64 --decode > my-release-key.jks
+      # Decode Android keystore
+      - name: Decode keystore
+        run: echo "$ANDROID_KEYSTORE" | base64 --decode > my-release-key.jks
 
-    - name: Build APK & AAB
-      run: |
-        cd android
-        ./gradlew bundleRelease assembleRelease \
-          -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/my-release-key.jks \
-          -Pandroid.injected.signing.store.password=$ANDROID_KEYSTORE_PASSWORD \
-          -Pandroid.injected.signing.key.alias=$ANDROID_KEY_ALIAS \
-          -Pandroid.injected.signing.key.password=$ANDROID_KEY_PASSWORD
+      # Build APK & AAB
+      - name: Build APK & AAB
+        run: |
+          cd android
+          ./gradlew bundleRelease assembleRelease \
+            -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/my-release-key.jks \
+            -Pandroid.injected.signing.store.password=$ANDROID_KEYSTORE_PASSWORD \
+            -Pandroid.injected.signing.key.alias=$ANDROID_KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$ANDROID_KEY_PASSWORD
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: android-build
-        path: android/app/build/outputs
+      # Upload build outputs
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build
+          path: android/app/build/outputs
