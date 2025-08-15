@@ -67,4 +67,25 @@ jobs:
           path: |
             android/app/build/outputs/bundle/release/*.aab
             android/app/build/outputs/apk/release/*.apk
-          retention-days: 7
+          retention-days: 7- name: Decode keystore
+  run: |
+    # Remove all whitespace and special characters
+    CLEAN_KEYSTORE=$(echo "${{ secrets.KEYSTORE }}" | tr -d '[:space:]' | sed 's/[^[:alnum:]+//g')
+    
+    # Add padding if needed
+    PADDED_KEYSTORE=$(echo "$CLEAN_KEYSTORE" | awk '{ len=length; mod=len%4; if(mod!=0) printf "%s", substr("====", 1, 4-mod); }')
+    
+    # Decode with strict validation
+    echo "$PADDED_KEYSTORE" | base64 -d > android/keystore.jks
+    
+    # Verify decoding success
+    if [ ! -s android/keystore.jks ]; then
+      echo "::error::Keystore decoding failed!"
+      exit 1
+    fi
+- name: Verify keystore
+  run: |
+    file android/keystore.jks
+    echo "Keystore size: $(wc -c < android/keystore.jks) bytes"
+# When creating new secrets:
+echo "$(base64 -w0 keystore.jks)" | pbcopy
