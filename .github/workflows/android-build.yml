@@ -54,7 +54,7 @@ storeFile=release.jks
 storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
 keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
 keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-EOF2
+EOF
           ls -la android/app
 
       - name: Make gradlew executable
