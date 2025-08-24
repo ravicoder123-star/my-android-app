@@ -1,74 +1,45 @@
-name: Build Android (Capacitor)
+name: Android Build
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Setup Android SDK (platform-tools + build-tools)
-        uses: android-actions/setup-android@v3
-        with:
-          api-level: 33
-          build-tools: '33.0.2'
-
-      - name: Install npm deps
-        run: npm ci
-
-      - name: Build web assets (if project has a build script)
+      - name: Decode Keystore
         run: |
-          if grep -q "\"build\"" package.json; then npm run build; fi
-          ls -la www || true
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > my-release-key.keystore
 
-      - name: Install Capacitor CLI
-        run: npm install @capacitor/cli @capacitor/android --no-audit --no-fund
+      - name: Set up Gradle
+        uses: gradle/gradle-build-action@v2
 
-      - name: Sync Capacitor Android
-        run: npx cap sync android
+      - name: Build Release APK & AAB
+        run: ./gradlew clean bundleRelease assembleRelease
 
-      - name: Restore keystore & keystore.properties from secrets
-        env:
-          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          mkdir -p android/app
-          echo "$KEYSTORE_B64" | base64 -d > android/app/release.jks
-          cat > android/keystore.properties <<EOF
-storeFile=release.jks
-storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-EOF
-          ls -la android/app
-
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
-
-      - name: Build AAB and APK (release)
-        run: |
-          cd android
-          ./gradlew bundleRelease assembleRelease --no-daemon
-
-      - name: Upload signed artifacts
-        uses: actions/upload-artifact@v4
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
         with:
-          name: tic-tac-enhance-builds
-          path: |
-            android/app/build/outputs/bundle/release/*.aab
-            android/app/build/outputs/apk/release/*.apk
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-builds
+          path: app/build/outputs/**/*.apk
