@@ -1,4 +1,4 @@
-name: Android Build
+name: Android Build (Capacitor)
 
 on:
   push:
@@ -11,35 +11,60 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v3
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '17'
 
-      - name: Decode Keystore
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 33
+          build-tools: '33.0.2'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets (if applicable)
         run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > my-release-key.keystore
+          if grep -q "\"build\"" package.json; then npm run build; fi
 
-      - name: Set up Gradle
-        uses: gradle/gradle-build-action@v2
+      - name: Sync Capacitor Android
+        run: npx cap sync android
 
-      - name: Build Release APK & AAB
-        run: ./gradlew clean bundleRelease assembleRelease
+      - name: Restore keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p android/app
+          echo "$KEYSTORE_B64" | base64 -d > android/app/release.jks
+          cat > android/keystore.properties <<EOF
+storeFile=release.jks
+storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+EOF
 
-      - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build APK & AAB
+        run: |
+          cd android
+          ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@v4
         with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          alias: ${{ secrets.ANDROID_KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
-
-      - name: Upload Release Artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: release-builds
-          path: app/build/outputs/**/*.apk
+          name: tic-tac-enhance-builds
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
